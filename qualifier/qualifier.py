@@ -1,3 +1,5 @@
+import re
+import warnings
 from enum import auto, StrEnum
 
 MAX_QUOTE_LENGTH = 50
@@ -18,16 +20,57 @@ class DuplicateError(Exception):
 # Implement the class and function below
 class Quote:
     def __init__(self, quote: str, mode: "VariantMode") -> None:
-        self.quote = ...
-        self.mode = ...
+        self.quote = quote
+        self.mode = mode
+
+        self.quote = self._create_variant()
 
     def __str__(self) -> str:
-        ...
+        return self.quote
 
     def _create_variant(self) -> str:
         """
         Transforms the quote to the appropriate variant indicated by `self.mode` and returns the result
         """
+        if self.mode == VariantMode.UWU:
+            sillyfied_quote = self.quote
+            replacements = {'l': 'w', 'L': 'W', 'r': 'w', 'R': 'W', ' u': ' u-u', ' U': ' U-U'}
+            for candidate, replacement in replacements.items():
+                sillyfied_quote = sillyfied_quote.replace(candidate, replacement)
+
+            if len(sillyfied_quote) > MAX_QUOTE_LENGTH:
+                sillyfied_quote = sillyfied_quote.replace('u-u', 'u')
+                sillyfied_quote = sillyfied_quote.replace('U-U', 'U')
+                warnings.warn('Quote too long, only partially transformed')
+
+        elif self.mode == VariantMode.PIGLATIN:
+            words = []
+            for word in self.quote.split(" "):
+                consonant_cluster = ''
+                for char in word:
+                    if char not in 'aeiouAEIOU':
+                        consonant_cluster += char
+                    else:
+                        break
+                if consonant_cluster:
+                    words.append(f"{word[len(consonant_cluster):]}{consonant_cluster}ay")
+                else:
+                    words.append(f"{word}way")
+            sillyfied_quote = " ".join(words).capitalize()
+
+            if len(sillyfied_quote) > MAX_QUOTE_LENGTH:
+                sillyfied_quote = self.quote
+
+        else:
+            sillyfied_quote = self.quote
+
+        if len(self.quote) > MAX_QUOTE_LENGTH:
+            raise ValueError("Quote is too long")
+
+        if self.mode != VariantMode.NORMAL and self.quote == sillyfied_quote:
+            raise ValueError("Quote was not modified")
+
+        return sillyfied_quote
 
 
 def run_command(command: str) -> None:
@@ -41,7 +84,22 @@ def run_command(command: str) -> None:
         - `quote list` - print a formatted string that lists the current
            quotes to be displayed in discord flavored markdown
     """
-    ...
+    if match := re.search(r"[\"“‘'](.*)[\"”’']", command):
+        command, quote = command[:match.start()].strip(), match.group(1)
+    else:
+        quote = ''
+
+    match command:
+        case 'quote': variant = VariantMode.NORMAL
+        case 'quote uwu': variant = VariantMode.UWU
+        case 'quote piglatin': variant = VariantMode.PIGLATIN
+        case 'quote list': return print(f"- {"\n- ".join(Database.get_quotes())}")
+        case _: raise ValueError("Invalid command")
+
+    try:
+        Database.add_quote(Quote(quote, variant))
+    except DuplicateError:
+        print("Quote has already been added previously")
 
 
 # The code below is available for you to use
